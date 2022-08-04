@@ -1,163 +1,293 @@
-# yii2-sendgrid
-Yii2 Mailer extension for SendGrid with batch mailing support. This extension is designed to replace them all! The only Yii2 SendGrid extension you will need!
+# Yii2 AWS S3
 
----
+An Amazon S3 component for Yii2.
+
+[![License](https://poser.pugx.org/nandorodpires/yii2-aws-s3/license)](https://github.com/nandorodpires/yii2-aws-s3/blob/2.x/LICENSE)
+[![Latest Stable Version](https://poser.pugx.org/nandorodpires/yii2-aws-s3/v/stable)](https://packagist.org/packages/nandorodpires/yii2-aws-s3)
+[![Total Downloads](https://poser.pugx.org/nandorodpires/yii2-aws-s3/downloads)](https://packagist.org/packages/nandorodpires/yii2-aws-s3)
+[![Latest Unstable Version](https://poser.pugx.org/nandorodpires/yii2-aws-s3/v/unstable)](https://packagist.org/packages/nandorodpires/yii2-aws-s3)
+
+> Yii2 AWS S3 uses [SemVer](http://semver.org/).
+
+> Version 2.x requires PHP 7. For PHP less 7.0 use [1.x](https://github.com/nandorodpires/yii2-aws-s3/tree/1.x).
 
 ## Installation
 
-The preferred way to install this extension is through [composer](http://getcomposer.org/download/).
+1. Run the [Composer](http://getcomposer.org/download/) command to install the latest version:
 
-Either run
+    ```bash
+    composer require nandorodpires/yii2-aws-s3 ~2.0
+    ```
 
-```
-php composer.phar require --prefer-dist nandorodpires/yii2-sendgrid
-```
+2. Add the component to `config/main.php`
 
-or add
-
-```json
-"nandorodpires/yii2-sendgrid": "~1.0"
-```
-
-to the require section of your application's `composer.json` file.
-
-Then configure your `mailer` component in your `main-local.php` (advanced) or `web.php` (basic) like so:
-
-    'mailer' => [
-        'class' => 'nandorodpires\sendgrid\Mailer',
-        'viewPath' => '@common/mail',
-        // send all mails to a file by default. You have to set
-        // 'useFileTransport' to false and configure a transport
-        // for the mailer to send real emails.
-        'useFileTransport' => false,
-        'apiKey' => '[YOUR_SENDGRID_API_KEY]',
+    ```php
+    'components' => [
+        // ...
+        's3' => [
+            'class' => 'nandorodpires\yii2\aws\s3\Service',
+            'credentials' => [ // Aws\Credentials\CredentialsInterface|array|callable
+                'key' => 'my-key',
+                'secret' => 'my-secret',
+            ],
+            'region' => 'my-region',
+            'defaultBucket' => 'my-bucket',
+            'defaultAcl' => 'public-read',
+        ],
+        // ...
     ],
+    ```
 
-Do not forget to replace `apiKey` with your SendGrid API key. It must have permissions to send emails.
+## Basic usage
 
-## Usage
+### Usage of the command factory and additional params
 
-### Single Mailing
+```php
+/** @var \nandorodpires\yii2\aws\s3\Service $s3 */
+$s3 = Yii::$app->get('s3');
 
-    $user = \common\models\User::find()->select(['id', 'username', 'email'])->where(['id' => 1])->one();
+/** @var \Aws\ResultInterface $result */
+$result = $s3->commands()->get('filename.ext')->saveAs('/path/to/local/file.ext')->execute();
 
-    $mailer = Yii::$app->mailer;
-    $message = $mailer->compose()
-        ->setTo([$user->email => $user->username])      // or just $user->email
-        ->setFrom(['alerts@example.com' => 'Alerts'])
-        ->setReplyTo('noreply@example.com')
-        ->setSubject('Hey -username-, Read This Email')
-        ->setHtmlBody('Dear -username-,<br><br>My HTML message here')
-        ->setTextBody('Dear -username-,\n\nMy Text message here')
-        //->setTemplateId('1234')
-        //->addSection('%section1%', 'This is my section1')
-        //->addHeader('X-Track-UserType', 'admin')
-        //->addHeader('X-Track-UID', Yii::$app->user->id)
-        //->addCategory('tests')
-        //->addCustomArg('test_arg', 'my custom arg')
-        //->setSendAt(time() + (5 * 60))
-        //->setBatchId(Yii::$app->mailer->createBatchId())
-        //->setIpPoolName('7')
-        //->attach(Yii::getAlias('@webroot/files/attachment.pdf'))
-        ->addSubstitution('-username-', $user->username)
-        ->send();
+$result = $s3->commands()->put('filename.ext', 'body')->withContentType('text/plain')->execute();
 
-    if ($message === true) {
-        echo 'Success!';
-        echo '<pre>' . print_r($mailer->getRawResponses(), true) . '</pre>';
-    } else {
-        echo 'Error!<br>';
-        echo '<pre>' . print_r($mailer->getErrors(), true) . '</pre>';
-    }
+$result = $s3->commands()->delete('filename.ext')->execute();
 
-### Batch Mailing
+$result = $s3->commands()->upload('filename.ext', '/path/to/local/file.ext')->withAcl('private')->execute();
 
-If you want to send to multiple recipients, you need to use the below method to batch send.
+$result = $s3->commands()->restore('filename.ext', $days = 7)->execute();
 
-    $mailer = Yii::$app->mailer;
-    //$batchId = Yii::$app->mailer->createBatchId();
-    //$sendTime = time() + (5 * 60);      // 5 minutes from now
+$result = $s3->commands()->list('path/')->execute();
 
-    foreach (User::find()->select(['id', 'username', 'email'])->batch(500) as $users)
+/** @var bool $exist */
+$exist = $s3->commands()->exist('filename.ext')->execute();
+
+/** @var string $url */
+$url = $s3->commands()->getUrl('filename.ext')->execute();
+
+/** @var string $signedUrl */
+$signedUrl = $s3->commands()->getPresignedUrl('filename.ext', '+2 days')->execute();
+```
+
+### Short syntax
+
+```php
+/** @var \nandorodpires\yii2\aws\s3\Service $s3 */
+$s3 = Yii::$app->get('s3');
+
+/** @var \Aws\ResultInterface $result */
+$result = $s3->get('filename.ext');
+
+$result = $s3->put('filename.ext', 'body');
+
+$result = $s3->delete('filename.ext');
+
+$result = $s3->upload('filename.ext', '/path/to/local/file.ext');
+
+$result = $s3->restore('filename.ext', $days = 7);
+
+$result = $s3->list('path/');
+
+/** @var bool $exist */
+$exist = $s3->exist('filename.ext');
+
+/** @var string $url */
+$url = $s3->getUrl('filename.ext');
+
+/** @var string $signedUrl */
+$signedUrl = $s3->getPresignedUrl('filename.ext', '+2 days');
+```
+
+### Asynchronous execution
+
+```php
+/** @var \nandorodpires\yii2\aws\s3\Service $s3 */
+$s3 = Yii::$app->get('s3');
+
+/** @var \GuzzleHttp\Promise\PromiseInterface $promise */
+$promise = $s3->commands()->get('filename.ext')->async()->execute();
+
+$promise = $s3->commands()->put('filename.ext', 'body')->async()->execute();
+
+$promise = $s3->commands()->delete('filename.ext')->async()->execute();
+
+$promise = $s3->commands()->upload('filename.ext', 'source')->async()->execute();
+
+$promise = $s3->commands()->list('path/')->async()->execute();
+```
+
+## Advanced usage
+
+```php
+/** @var \nandorodpires\yii2\aws\s3\interfaces\Service $s3 */
+$s3 = Yii::$app->get('s3');
+
+/** @var \nandorodpires\yii2\aws\s3\commands\GetCommand $command */
+$command = $s3->create(GetCommand::class);
+$command->inBucket('my-another-bucket')->byFilename('filename.ext')->saveAs('/path/to/local/file.ext');
+
+/** @var \Aws\ResultInterface $result */
+$result = $s3->execute($command);
+
+// or async
+/** @var \GuzzleHttp\Promise\PromiseInterface $promise */
+$promise = $s3->execute($command->async());
+```
+
+### Custom commands
+
+Commands have two types: plain commands that's handled by the `PlainCommandHandler` and commands with their own handlers.
+The plain commands wrap the native AWS S3 commands.
+
+The plain commands must implement the `PlainCommand` interface and the rest must implement the `Command` interface.
+If the command doesn't implement the `PlainCommand` interface, it must have its own handler.
+
+Every handler must extend the `Handler` class or implement the `Handler` interface.
+Handlers gets the `S3Client` instance into its constructor.
+
+The implementation of the `HasBucket` and `HasAcl` interfaces allows the command builder to set the values
+of bucket and acl by default.
+
+To make the plain commands asynchronously, you have to implement the `Asynchronous` interface.
+Also, you can use the `Async` trait to implement this interface.
+
+Consider the following command:
+
+```php
+<?php
+
+namespace app\components\s3\commands;
+
+use nandorodpires\yii2\aws\s3\base\commands\traits\Options;
+use nandorodpires\yii2\aws\s3\interfaces\commands\Command;
+use nandorodpires\yii2\aws\s3\interfaces\commands\HasBucket;
+
+class MyCommand implements Command, HasBucket
+{
+    use Options;
+
+    protected $bucket;
+
+    protected $something;
+
+    public function getBucket()
     {
-
-        $message = $mailer->compose()
-            ->setFrom(['alerts@example.com' => 'Alerts'])
-            ->setReplyTo('noreply@example.com')
-            ->setSubject('Hey -username-, Read This Email')
-            ->setHtmlBody('Dear -username-,<br><br>My HTML message here')
-            ->setTextBody('Dear -username-,\n\nMy Text message here');
-            //->setTemplateId('1234')
-            //->addSection('%section1%', 'This is my section1')
-            //->addHeader('X-Track-UserType', 'admin')
-            //->addHeader('X-Track-UID', Yii::$app->user->id)
-            //->addCategory('tests')
-            //->addCustomArg('test_arg', 'my custom arg')
-            //->setSendAt($sendTime)
-            //->setBatchId($batchId)
-            //->setIpPoolName('7')
-            //->attach(Yii::getAlias('@webroot/files/attachment.pdf'));
-
-        foreach ( $users as $user )
-        {
-            // A Personalization Object Helper would be nice here...
-            $personalization = [
-                'to' => [$user->email => $user->username],      // or just `email@example.com`
-                //'cc' => 'cc@example.com',
-                //'bcc' => 'bcc@example.com',
-                //'subject' => 'Hey -username-, Custom message for you!',
-                //'headers' => [
-                //    'X-Track-RecipId' => $user->id,
-                //],
-                'substitutions' => [
-                    '-username-' => $user->username,
-                ],
-                //'custom_args' => [
-                //    'user_id' => $user->id,
-                //    'type' => 'marketing',
-                //],
-                //'send_at' => $sendTime,
-            ];
-            $message->addPersonalization($personalization);
-        }
-
-        $result = $message->send();
+        return $this->bucket;
     }
 
-    if ($result === true) {
-        echo 'Success!';
-        echo '<pre>' . print_r($mailer->getRawResponses(), true) . '</pre>';
-    } else {
-        echo 'Error!<br>';
-        echo '<pre>' . print_r($mailer->getErrors(), true) . '</pre>';
+    public function inBucket(string $bucket)
+    {
+        $this->bucket = $bucket;
+
+        return $this;
     }
 
-**NOTE:** SendGrid supports a max of 1,000 recipients. This is a total of the to, bcc, and cc addresses. I recommend using `500` for the batch size. This should be large enough to process thousands of emails efficiently without risking getting errors by accidentally breaking the 1,000 recipients rule. If you are not using any bcc or cc addresses, you *could* raise the batch number a little higher. Theoretically, you should be able to do 1,000 but I would probably max at 950 to leave some wiggle room.
+    public function getSomething()
+    {
+        return $this->something;
+    }
 
----
+    public function withSomething(string $something)
+    {
+        $this->something = $something;
 
-## Known Issues
+        return $this;
+    }
+}
+```
 
- - `addSection()` - There is currently an issue with the SendGrid API where sections are not working.
- - `setSendAt()` - There is currently an issue with the SendGrid API where using `send_at` where the time shows the queued time not the actual time that the email was sent.
- - `setReplyTo()` - There is currently an issue with the SendGrid PHP API where the ReplyTo address only accepts the email address as a string. So you can't set a name.
+The handler for this command looks like this:
 
----
+```php
+<?php
 
-## TODO
+namespace app\components\s3\handlers;
 
-There are a few things left that I didn't get to:
+use app\components\s3\commands\MyCommand;
+use nandorodpires\yii2\aws\s3\base\handlers\Handler;
 
- - ASM
- - mail_settings
- - tracking_settings
+class MyCommandHandler extends Handler
+{
+    public function handle(MyCommand $command)
+    {
+        return $this->s3Client->someAction(
+            $command->getBucket(),
+            $command->getSomething(),
+            $command->getOptions()
+        );
+    }
+}
+```
 
- I plan to get to them at a later date. Feel free to help out if you can :)
+And usage this command:
 
----
+```php
+/** @var \nandorodpires\yii2\aws\s3\interfaces\Service */
+$s3 = Yii::$app->get('s3');
 
-<!-- ## Donate
+/** @var \app\components\s3\commands\MyCommand $command */
+$command = $s3->create(MyCommand::class);
+$command->withSomething('some value')->withOption('OptionName', 'value');
 
-Please consider donating if you find my code useful.
+/** @var \Aws\ResultInterface $result */
+$result = $s3->execute($command);
+```
 
-[![PayPal Donate](https://i.ibb.co/YcM55mt/paypaldonate.png "Donate")](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=BEAUQFRMDPHT8&source=url) -->
+Custom plain command looks like this:
+
+```php
+<?php
+
+namespace app\components\s3\commands;
+
+use nandorodpires\yii2\aws\s3\interfaces\commands\HasBucket;
+use nandorodpires\yii2\aws\s3\interfaces\commands\PlainCommand;
+
+class MyPlainCommand implements PlainCommand, HasBucket
+{
+    protected $args = [];
+
+    public function getBucket()
+    {
+        return $this->args['Bucket'] ?? '';
+    }
+
+    public function inBucket(string $bucket)
+    {
+        $this->args['Bucket'] = $bucket;
+
+        return $this;
+    }
+
+    public function getSomething()
+    {
+        return $this->args['something'] ?? '';
+    }
+
+    public function withSomething($something)
+    {
+        $this->args['something'] = $something;
+
+        return $this;
+    }
+
+    public function getName(): string
+    {
+        return 'AwsS3CommandName';
+    }
+
+    public function toArgs(): array
+    {
+        return $this->args;
+    }
+}
+```
+
+Any command can extend the `ExecutableCommand` class or implement the `Executable` interface that will
+allow to execute this command immediately: `$command->withSomething('some value')->execute();`.
+
+## License
+
+Yii2 AWS S3 is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for more information.
