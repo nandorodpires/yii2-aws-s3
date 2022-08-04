@@ -1,0 +1,22 @@
+{
+    "name": "nandorodpires/yii2-aws-s3",
+    "description": "An Amazon S3 component for Yii2",
+    "type": "yii2-extension",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Fernando Rodrigues",
+            "email": "nandorodpires@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "nandorodpires\\yii2\\aws\\s3": "src/"
+        }
+    },
+    "require": {
+        "php": ">=7.0",
+        "yiisoft/yii2": "~2.0",
+        "aws/aws-sdk-php": "~3.17"
+    }
+}
